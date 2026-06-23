@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EduTrack – School Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;800;900&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Nunito', sans-serif; background: #F0F4FF; min-height: 100vh; }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(22px) } to { opacity: 1; transform: translateY(0) } }
+  @keyframes fadeCard { from { opacity: 0; transform: scale(0.95) } to { opacity: 1; transform: scale(1) } }
+  @keyframes popIn { 0%{transform:scale(0.7);opacity:0} 70%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+  @keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #e8eeff; }
+  ::-webkit-scrollbar-thumb { background: #c5ccee; border-radius: 3px; }
+  select { appearance: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const { useState, useEffect, useRef } = React;
+
+const C = {
+  navy:   "#0F1B4C",
+  navy2:  "#1A2B7A",
+  coral:  "#FF6B6B",
+  teal:   "#00C9B1",
+  yellow: "#FFD93D",
+  bg:     "#F0F4FF",
+  card:   "#FFFFFF",
+  dark:   "#1A1A2E",
+  mid:    "#555577",
+  light:  "#8899BB",
+};
+
+const GRADIENTS = [
+  ["#FF6B6B","#FF8E53"],["#00C9B1","#00A896"],["#FFD93D","#FF9500"],
+  ["#6C63FF","#3F3D8F"],["#F093FB","#C471ED"],["#4FACFE","#00F2FE"],
+  ["#43E97B","#38F9D7"],["#FA709A","#FEE140"],["#A18CD1","#FBC2EB"],
+  ["#FD746C","#FF9068"],["#30cfd0","#330867"],["#a1c4fd","#c2e9fb"],
+];
+
+const INIT_STUDENTS = [
+  {id:1,name:"Aisha Khan",   grade:"Grade 5A",roll:"001",ai:0},
+  {id:2,name:"Bilal Ahmed",  grade:"Grade 5A",roll:"002",ai:1},
+  {id:3,name:"Zara Malik",   grade:"Grade 5A",roll:"003",ai:2},
+  {id:4,name:"Omar Farooq",  grade:"Grade 5A",roll:"004",ai:3},
+  {id:5,name:"Fatima Noor",  grade:"Grade 5A",roll:"005",ai:4},
+  {id:6,name:"Hassan Raza",  grade:"Grade 5A",roll:"006",ai:5},
+  {id:7,name:"Sara Iqbal",   grade:"Grade 5B",roll:"007",ai:6},
+  {id:8,name:"Ali Hassan",   grade:"Grade 5B",roll:"008",ai:7},
+];
+
+const todayKey = () => new Date().toISOString().split("T")[0];
+const todayStr = () => new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+
+/* ── Avatar ─────────────────────────────────────── */
+function Avatar({name, ai, size=80}){
+  const [g1,g2] = GRADIENTS[ai % GRADIENTS.length];
+  const init = name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  return (
+    <div style={{
+      width:size, height:size, borderRadius:"50%",
+      background:`linear-gradient(135deg,${g1},${g2})`,
+      display:"flex", alignItems:"center", justifyContent:"center",
+      fontSize:size*0.32, fontWeight:800, color:"#fff",
+      fontFamily:"'Poppins',sans-serif",
+      boxShadow:`0 4px 18px ${g1}60`,
+      flexShrink:0, userSelect:"none", letterSpacing:1,
+    }}>{init}</div>
+  );
+}
+
+/* ── Stat Card ───────────────────────────────────── */
+function Stat({label,value,color,icon}){
+  return (
+    <div style={{
+      background:"#fff", borderRadius:20, padding:"22px 24px",
+      boxShadow:"0 4px 24px rgba(15,27,76,0.08)",
+      display:"flex", alignItems:"center", gap:16,
+      borderLeft:`5px solid ${color}`,
+      animation:"slideUp 0.4s ease",
+    }}>
+      <div style={{
+        width:52, height:52, borderRadius:14,
+        background:`${color}18`,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        fontSize:24, flexShrink:0,
+      }}>{icon}</div>
+      <div>
+        <div style={{fontSize:30,fontWeight:900,color:C.dark,lineHeight:1,fontFamily:"'Poppins',sans-serif"}}>{value}</div>
+        <div style={{fontSize:13,color:C.mid,marginTop:4,fontWeight:600}}>{label}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Student Card ────────────────────────────────── */
+function StudentCard({student, status, onMark}){
+  return (
+    <div style={{
+      background:"#fff", borderRadius:22, padding:"24px 18px",
+      boxShadow: status==="present" ? `0 8px 30px ${C.teal}30`
+               : status==="absent"  ? `0 8px 30px ${C.coral}30`
+               :                      "0 4px 20px rgba(15,27,76,0.07)",
+      border:`2.5px solid ${status==="present"?C.teal:status==="absent"?C.coral:"#E8EEFF"}`,
+      display:"flex", flexDirection:"column", alignItems:"center", gap:14,
+      position:"relative", overflow:"hidden",
+      transition:"all 0.35s cubic-bezier(0.4,0,0.2,1)",
+      animation:"fadeCard 0.4s ease",
+    }}>
+      {/* status badge */}
+      {status && (
+        <div style={{
+          position:"absolute", top:12, right:12,
+          background: status==="present"?C.teal:C.coral,
+          color:"#fff", borderRadius:20, padding:"3px 12px",
+          fontSize:11, fontWeight:800, letterSpacing:0.5,
+          animation:"popIn 0.3s ease",
+        }}>{status==="present"?"✓ Present":"✗ Absent"}</div>
+      )}
+
+      <Avatar name={student.name} ai={student.ai} size={90} />
+      <div style={{textAlign:"center"}}>
+        <div style={{fontWeight:800,fontSize:15.5,color:C.dark}}>{student.name}</div>
+        <div style={{fontSize:12,color:C.light,marginTop:3}}>Roll #{student.roll} · {student.grade}</div>
+      </div>
+      <div style={{display:"flex",gap:8,width:"100%"}}>
+        {["present","absent"].map(s=>(
+          <button key={s} onClick={()=>onMark(student.id,s)} style={{
+            flex:1, padding:"10px 0", borderRadius:12, border:"none",
+            background: status===s ? (s==="present"?C.teal:C.coral) : (s==="present"?"#E8FBF9":"#FFF0F0"),
+            color: status===s ? "#fff" : (s==="present"?C.teal:C.coral),
+            fontWeight:800, fontSize:13, cursor:"pointer",
+            fontFamily:"'Nunito',sans-serif",
+            transition:"all 0.2s",
+          }}>{s==="present"?"✓ Present":"✗ Absent"}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Add Student Modal ───────────────────────────── */
+function Modal({students, onAdd, onClose}){
+  const [name,setName]=useState("");
+  const [grade,setGrade]=useState("Grade 5A");
+  const [roll,setRoll]=useState("");
+  const firstRef = useRef();
+  useEffect(()=>{ firstRef.current && firstRef.current.focus(); },[]);
+
+  const submit = ()=>{
+    if(!name.trim()||!roll.trim()) return;
+    onAdd({name:name.trim(), grade, roll:roll.trim()});
+    onClose();
+  };
+
+  const inp = (v,set,ph,ref)=>(
+    <input ref={ref} value={v} onChange={e=>set(e.target.value)}
+      placeholder={ph}
+      onKeyDown={e=>e.key==="Enter"&&submit()}
+      style={{
+        width:"100%", padding:"13px 16px", borderRadius:14,
+        border:"2px solid #E8EEFF", fontSize:15, outline:"none",
+        fontFamily:"'Nunito',sans-serif", color:C.dark, boxSizing:"border-box",
+      }}
+      onFocus={e=>e.target.style.borderColor=C.navy}
+      onBlur={e=>e.target.style.borderColor="#E8EEFF"}
+    />
+  );
+
+  return (
+    <div onClick={onClose} style={{
+      position:"fixed",inset:0,background:"rgba(15,27,76,0.6)",
+      display:"flex",alignItems:"center",justifyContent:"center",
+      zIndex:1000, backdropFilter:"blur(5px)", animation:"fadeIn 0.2s ease",
+    }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:"#fff", borderRadius:28, padding:"36px 30px",
+        width:"min(460px,93vw)", boxShadow:"0 24px 70px rgba(15,27,76,0.22)",
+        animation:"slideUp 0.3s ease",
+      }}>
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:28}}>
+          <div style={{
+            width:48,height:48,borderRadius:14,
+            background:`linear-gradient(135deg,${C.navy},${C.navy2})`,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,
+          }}>👤</div>
+          <div>
+            <div style={{fontWeight:900,fontSize:21,color:C.dark,fontFamily:"'Poppins',sans-serif"}}>Add New Student</div>
+            <div style={{fontSize:13,color:C.light}}>Fill in the student's details</div>
+          </div>
+        </div>
+
+        <div style={{marginBottom:16}}>
+          <label style={{display:"block",fontSize:12,fontWeight:800,color:C.mid,marginBottom:6,letterSpacing:0.5,textTransform:"uppercase"}}>Full Name</label>
+          {inp(name,setName,"e.g. Aisha Khan",firstRef)}
+        </div>
+        <div style={{marginBottom:16}}>
+          <label style={{display:"block",fontSize:12,fontWeight:800,color:C.mid,marginBottom:6,letterSpacing:0.5,textTransform:"uppercase"}}>Roll Number</label>
+          {inp(roll,setRoll,"e.g. 009")}
+        </div>
+        <div style={{marginBottom:28}}>
+          <label style={{display:"block",fontSize:12,fontWeight:800,color:C.mid,marginBottom:6,letterSpacing:0.5,textTransform:"uppercase"}}>Grade / Class</label>
+          <select value={grade} onChange={e=>setGrade(e.target.value)} style={{
+            width:"100%",padding:"13px 16px",borderRadius:14,
+            border:"2px solid #E8EEFF",fontSize:15,outline:"none",
+            fontFamily:"'Nunito',sans-serif",color:C.dark,background:"#fff",cursor:"pointer",
+          }}>
+            {["Grade 4A","Grade 4B","Grade 5A","Grade 5B","Grade 6A","Grade 6B","Grade 7A","Grade 7B"].map(g=>(
+              <option key={g}>{g}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{display:"flex",gap:12}}>
+          <button onClick={onClose} style={{
+            flex:1,padding:"14px 0",borderRadius:14,border:"2px solid #E8EEFF",
+            background:"#fff",color:C.mid,fontWeight:700,fontSize:15,cursor:"pointer",
+            fontFamily:"'Nunito',sans-serif",
+          }}>Cancel</button>
+          <button onClick={submit} style={{
+            flex:2,padding:"14px 0",borderRadius:14,border:"none",
+            background:`linear-gradient(135deg,${C.navy},${C.navy2})`,
+            color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",
+            fontFamily:"'Poppins',sans-serif",
+            boxShadow:`0 6px 20px ${C.navy}40`,
+          }}>+ Add Student</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Records View ────────────────────────────────── */
+function Records({students, allAtt}){
+  const dates = Object.keys(allAtt).sort().reverse();
+  if(!dates.length) return (
+    <div style={{
+      background:"#fff",borderRadius:22,
+      boxShadow:"0 4px 24px rgba(15,27,76,0.08)",
+      padding:"80px 24px",textAlign:"center",
+      color:C.light,fontSize:16,
+    }}>
+      <div style={{fontSize:48,marginBottom:16}}>📭</div>
+      <div style={{fontWeight:700}}>No attendance records yet.</div>
+      <div style={{marginTop:8,fontSize:13}}>Mark attendance to see records here.</div>
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {dates.map(date=>{
+        const day = allAtt[date];
+        const present = students.filter(s=>day[s.id]==="present").length;
+        const absent  = students.filter(s=>day[s.id]==="absent").length;
+        const total   = present+absent;
+        const pct     = total ? Math.round((present/total)*100) : 0;
+        const d = new Date(date+"T12:00:00");
+        const fmt = d.toLocaleDateString("en-US",{weekday:"short",month:"long",day:"numeric",year:"numeric"});
+        return (
+          <div key={date} style={{
+            background:"#fff",borderRadius:22,overflow:"hidden",
+            boxShadow:"0 4px 24px rgba(15,27,76,0.07)",
+            animation:"slideUp 0.3s ease",
+          }}>
+            <div style={{
+              background:`linear-gradient(135deg,${C.navy},${C.navy2})`,
+              padding:"16px 24px",
+              display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,
+            }}>
+              <div>
+                <div style={{fontWeight:800,fontSize:16,color:"#fff",fontFamily:"'Poppins',sans-serif"}}>{fmt}</div>
+                <div style={{fontSize:12,color:"#8899CC",marginTop:2}}>
+                  <span style={{color:`${C.teal}`}}>✓ {present} Present</span>
+                  <span style={{margin:"0 8px",color:"#334477"}}>|</span>
+                  <span style={{color:"#FF9999"}}>✗ {absent} Absent</span>
+                </div>
+              </div>
+              <div style={{
+                background:"rgba(255,255,255,0.15)",backdropFilter:"blur(8px)",
+                borderRadius:30,padding:"8px 18px",
+                fontSize:16,fontWeight:900,color:"#fff",fontFamily:"'Poppins',sans-serif",
+              }}>{pct}% ✅</div>
+            </div>
+            <div style={{padding:"18px 24px"}}>
+              {/* progress bar */}
+              <div style={{height:8,background:"#F0F4FF",borderRadius:6,overflow:"hidden",marginBottom:16}}>
+                <div style={{
+                  height:"100%",borderRadius:6,
+                  background:`linear-gradient(90deg,${C.teal},${C.navy})`,
+                  width:`${pct}%`,transition:"width 0.8s ease",
+                }}/>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {students.map(s=>{
+                  const st=day[s.id];
+                  if(!st)return null;
+                  return (
+                    <div key={s.id} style={{
+                      display:"flex",alignItems:"center",gap:7,
+                      background:st==="present"?`${C.teal}12`:`${C.coral}12`,
+                      border:`1.5px solid ${st==="present"?`${C.teal}50`:`${C.coral}50`}`,
+                      borderRadius:30,padding:"5px 12px",
+                      animation:"popIn 0.3s ease",
+                    }}>
+                      <Avatar name={s.name} ai={s.ai} size={24}/>
+                      <span style={{fontSize:13,fontWeight:700,color:C.dark}}>{s.name}</span>
+                      <span style={{
+                        fontSize:12,fontWeight:800,
+                        color:st==="present"?C.teal:C.coral,
+                      }}>{st==="present"?"✓":"✗"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Main App ────────────────────────────────────── */
+function App(){
+  const [students,setStudents] = useState(INIT_STUDENTS);
+  const [allAtt,setAllAtt] = useState({});
+  const [view,setView] = useState("dashboard");
+  const [modal,setModal] = useState(false);
+  const [search,setSearch] = useState("");
+
+  const today = todayKey();
+  const att = allAtt[today]||{};
+  const setAtt = d => setAllAtt(p=>({...p,[today]:d}));
+  const mark = (id,s) => setAtt({...att,[id]:s});
+
+  const present = students.filter(s=>att[s.id]==="present").length;
+  const absent  = students.filter(s=>att[s.id]==="absent").length;
+  const marked  = present+absent;
+  const pct     = students.length ? Math.round((marked/students.length)*100) : 0;
+
+  const filtered = students.filter(s=>
+    s.name.toLowerCase().includes(search.toLowerCase())||s.roll.includes(search)
+  );
+
+  const addStudent = ({name,grade,roll})=>{
+    const id = Date.now();
+    const ai = students.length % GRADIENTS.length;
+    setStudents(p=>[...p,{id,name,grade,roll,ai}]);
+  };
+
+  const nav = [
+    {id:"dashboard", icon:"🏠", label:"Dashboard"},
+    {id:"mark",      icon:"✅", label:"Attendance"},
+    {id:"records",   icon:"📋", label:"Records"},
+  ];
+
+  return (
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+
+      {/* ─ Header ─ */}
+      <header style={{
+        background:`linear-gradient(135deg,${C.navy},${C.navy2})`,
+        position:"sticky",top:0,zIndex:100,
+        boxShadow:"0 4px 28px rgba(15,27,76,0.3)",
+      }}>
+        <div style={{
+          maxWidth:1200,margin:"0 auto",padding:"0 20px",
+          display:"flex",alignItems:"center",justifyContent:"space-between",
+          height:68,gap:12,
+        }}>
+          {/* Logo */}
+          <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+            <div style={{
+              width:42,height:42,borderRadius:13,
+              background:`linear-gradient(135deg,${C.yellow},#FFA500)`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:22,boxShadow:`0 4px 14px ${C.yellow}60`,
+            }}>🎓</div>
+            <div style={{display:"none",flexDirection:"column"}}>
+              <span style={{fontFamily:"'Poppins',sans-serif",fontWeight:900,fontSize:18,color:"#fff",lineHeight:1}}>EduTrack</span>
+              <span style={{fontSize:10,color:"#6677AA",letterSpacing:1}}>SMART ATTENDANCE</span>
+            </div>
+            <div style={{fontFamily:"'Poppins',sans-serif",fontWeight:900,fontSize:18,color:"#fff"}}>EduTrack</div>
+          </div>
+
+          {/* Nav */}
+          <nav style={{display:"flex",gap:4}}>
+            {nav.map(n=>(
+              <button key={n.id} onClick={()=>setView(n.id)} style={{
+                padding:"8px 14px",borderRadius:12,border:"none",
+                background:view===n.id?"rgba(255,255,255,0.18)":"transparent",
+                color:view===n.id?"#fff":"#8899CC",
+                fontWeight:view===n.id?800:500,
+                fontSize:14,cursor:"pointer",
+                fontFamily:"'Nunito',sans-serif",
+                transition:"all 0.2s",
+                display:"flex",alignItems:"center",gap:6,
+              }}>
+                <span>{n.icon}</span>
+                <span style={{display:"none"}} className="nav-label">{n.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Add btn */}
+          <button onClick={()=>setModal(true)} style={{
+            padding:"9px 16px",borderRadius:13,border:"none",
+            background:`linear-gradient(135deg,${C.coral},#FF4757)`,
+            color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer",
+            fontFamily:"'Poppins',sans-serif",
+            boxShadow:`0 4px 16px ${C.coral}60`,
+            display:"flex",alignItems:"center",gap:6,
+            whiteSpace:"nowrap",flexShrink:0,
+          }}>
+            <span>+</span>
+            <span>Add Student</span>
+          </button>
+        </div>
+
+        {/* nav labels visible on md+ */}
+        <style>{`
+          @media(min-width:540px){.nav-label{display:inline!important}}
+        `}</style>
+      </header>
+
+      {/* ─ Content ─ */}
+      <main style={{flex:1,maxWidth:1200,margin:"0 auto",width:"100%",padding:"28px 18px 48px"}}>
+
+        {/* ═══ Dashboard ═══════════════════════════════ */}
+        {view==="dashboard"&&(
+          <div style={{animation:"fadeIn 0.3s ease"}}>
+            <div style={{marginBottom:28}}>
+              <div style={{fontFamily:"'Poppins',sans-serif",fontWeight:900,fontSize:26,color:C.dark}}>
+                Good Morning, Teacher! 👋
+              </div>
+              <div style={{fontSize:14,color:C.light,marginTop:4}}>{todayStr()}</div>
+            </div>
+
+            {/* Stats */}
+            <div style={{
+              display:"grid",
+              gridTemplateColumns:"repeat(auto-fit,minmax(195px,1fr))",
+              gap:14,marginBottom:28,
+            }}>
+              <Stat label="Total Students" value={students.length} color={C.navy}  icon="👩‍🎓"/>
+              <Stat label="Present Today"  value={present}          color={C.teal}  icon="✅"/>
+              <Stat label="Absent Today"   value={absent}           color={C.coral} icon="❌"/>
+              <Stat label="Not Marked"     value={students.length-marked} color={C.yellow} icon="⏳"/>
+            </div>
+
+            {/* Progress card */}
+            <div style={{
+              background:"#fff",borderRadius:22,padding:"26px 28px",
+              boxShadow:"0 4px 24px rgba(15,27,76,0.08)",marginBottom:28,
+            }}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div style={{fontWeight:800,fontSize:17,color:C.dark}}>Today's Marking Progress</div>
+                <div style={{
+                  fontSize:14,fontWeight:800,
+                  color: pct===100 ? C.teal : C.mid,
+                }}>{marked}/{students.length} students marked · {pct}%</div>
+              </div>
+              <div style={{height:14,background:"#F0F4FF",borderRadius:8,overflow:"hidden",position:"relative"}}>
+                <div style={{
+                  height:"100%",borderRadius:8,
+                  background:`linear-gradient(90deg,${C.teal},${C.navy})`,
+                  width:`${pct}%`,
+                  transition:"width 0.9s cubic-bezier(0.4,0,0.2,1)",
+                }}/>
+              </div>
+              <div style={{marginTop:16}}>
+                {pct===100&&students.length>0 ? (
+                  <div style={{
+                    display:"inline-flex",alignItems:"center",gap:8,
+                    background:`${C.teal}15`,borderRadius:30,
+                    padding:"8px 18px",
+                    fontSize:14,fontWeight:800,color:C.teal,
+                  }}>🎉 All students marked for today!</div>
+                ) : (
+                  <button onClick={()=>setView("mark")} style={{
+                    padding:"9px 22px",borderRadius:30,border:"none",
+                    background:`linear-gradient(135deg,${C.navy},${C.navy2})`,
+                    color:"#fff",fontSize:14,fontWeight:800,cursor:"pointer",
+                    fontFamily:"'Poppins',sans-serif",
+                    boxShadow:`0 4px 14px ${C.navy}40`,
+                    display:"inline-flex",alignItems:"center",gap:8,
+                  }}>
+                    ✅ Mark Attendance Now →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Students overview grid */}
+            <div style={{fontWeight:800,fontSize:18,color:C.dark,marginBottom:16}}>All Students</div>
+            <div style={{
+              display:"grid",
+              gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",
+              gap:12,
+            }}>
+              {students.map(s=>{
+                const st = att[s.id];
+                return (
+                  <div key={s.id} style={{
+                    background:"#fff",borderRadius:18,padding:"14px 16px",
+                    display:"flex",alignItems:"center",gap:12,
+                    boxShadow:"0 2px 14px rgba(15,27,76,0.06)",
+                    border:`2px solid ${st==="present"?`${C.teal}45`:st==="absent"?`${C.coral}45`:"#E8EEFF"}`,
+                    transition:"border-color 0.3s ease",
+                    animation:"fadeCard 0.4s ease",
+                  }}>
+                    <Avatar name={s.name} ai={s.ai} size={44}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:800,fontSize:13.5,color:C.dark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
+                      <div style={{fontSize:11,color:C.light,marginTop:2}}>{s.grade} · #{s.roll}</div>
+                    </div>
+                    <div style={{fontSize:20}}>
+                      {st==="present"?"✅":st==="absent"?"❌":"⏳"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Mark Attendance ═════════════════════════ */}
+        {view==="mark"&&(
+          <div style={{animation:"fadeIn 0.3s ease"}}>
+            <div style={{
+              display:"flex",justifyContent:"space-between",
+              alignItems:"flex-start",flexWrap:"wrap",gap:16,marginBottom:26,
+            }}>
+              <div>
+                <div style={{fontFamily:"'Poppins',sans-serif",fontWeight:900,fontSize:25,color:C.dark}}>
+                  Mark Attendance ✅
+                </div>
+                <div style={{fontSize:13,color:C.light,marginTop:4}}>{todayStr()}</div>
+              </div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                {/* search */}
+                <div style={{
+                  background:"#fff",borderRadius:14,padding:"10px 16px",
+                  display:"flex",alignItems:"center",gap:8,
+                  boxShadow:"0 2px 12px rgba(15,27,76,0.06)",
+                  border:"2px solid #E8EEFF",
+                }}>
+                  <span>🔍</span>
+                  <input
+                    value={search} onChange={e=>setSearch(e.target.value)}
+                    placeholder="Search student…"
+                    style={{
+                      border:"none",outline:"none",fontSize:14,
+                      fontFamily:"'Nunito',sans-serif",width:140,color:C.dark,background:"transparent",
+                    }}
+                  />
+                </div>
+                {/* mark all present */}
+                <button onClick={()=>{
+                  const all={};
+                  students.forEach(s=>{all[s.id]="present";});
+                  setAtt(all);
+                }} style={{
+                  padding:"11px 18px",borderRadius:14,border:"none",
+                  background:`linear-gradient(135deg,${C.teal},#00A896)`,
+                  color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",
+                  fontFamily:"'Poppins',sans-serif",
+                  boxShadow:`0 4px 14px ${C.teal}50`,
+                }}>✓ All Present</button>
+                {/* clear */}
+                <button onClick={()=>setAtt({})} style={{
+                  padding:"11px 18px",borderRadius:14,border:"2px solid #E8EEFF",
+                  background:"#fff",color:C.mid,fontWeight:800,fontSize:13,cursor:"pointer",
+                  fontFamily:"'Nunito',sans-serif",
+                }}>↺ Clear</button>
+              </div>
+            </div>
+
+            {/* Summary bar */}
+            <div style={{
+              background:"#fff",borderRadius:16,padding:"14px 20px",
+              display:"flex",gap:20,marginBottom:24,
+              boxShadow:"0 2px 14px rgba(15,27,76,0.06)",
+              flexWrap:"wrap",
+            }}>
+              {[
+                {label:"Total",  val:students.length, color:C.navy},
+                {label:"Present",val:present,          color:C.teal},
+                {label:"Absent", val:absent,            color:C.coral},
+                {label:"Pending",val:students.length-marked, color:C.yellow},
+              ].map(x=>(
+                <div key={x.label} style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:x.color}}/>
+                  <span style={{fontSize:13,fontWeight:700,color:C.mid}}>{x.label}:</span>
+                  <span style={{fontSize:14,fontWeight:900,color:C.dark}}>{x.val}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{
+              display:"grid",
+              gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",
+              gap:18,
+            }}>
+              {filtered.map(s=>(
+                <StudentCard key={s.id} student={s} status={att[s.id]} onMark={mark}/>
+              ))}
+              {!filtered.length&&(
+                <div style={{
+                  gridColumn:"1/-1",textAlign:"center",padding:"70px 20px",
+                  color:C.light,fontSize:15,
+                }}>
+                  <div style={{fontSize:40,marginBottom:12}}>🔍</div>
+                  No students match "<strong>{search}</strong>"
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Records ═════════════════════════════════ */}
+        {view==="records"&&(
+          <div style={{animation:"fadeIn 0.3s ease"}}>
+            <div style={{marginBottom:24}}>
+              <div style={{fontFamily:"'Poppins',sans-serif",fontWeight:900,fontSize:25,color:C.dark}}>
+                Attendance Records 📋
+              </div>
+              <div style={{fontSize:13,color:C.light,marginTop:4}}>Full history of all attendance sessions</div>
+            </div>
+            <Records students={students} allAtt={allAtt}/>
+          </div>
+        )}
+      </main>
+
+      {/* ─ Footer ─ */}
+      <footer style={{
+        background:C.navy,padding:"18px 24px",textAlign:"center",
+        color:"#445588",fontSize:12,fontWeight:600,
+      }}>
+        🎓 EduTrack · School Attendance System · Built with ❤️ for Teachers
+      </footer>
+
+      {/* ─ Modal ─ */}
+      {modal&&<Modal students={students} onAdd={addStudent} onClose={()=>setModal(false)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
